@@ -54,12 +54,54 @@
 </head>
 <body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
 
-    <!-- Global Variables for Firebase/API (Mandatory in this environment) -->
+    
+    <div class="card w-full max-w-xl p-6 rounded-xl space-y-6">
+        <h1 class="text-4xl font-black text-center text-[#500000] flex items-center justify-center gap-4">
+            <!-- Aggie Star Icon (Symbolic of the A&M spirit and Reveille's rank) -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="currentColor" class="text-[#500000]">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14l-5-4.87 6.91-1.01L12 2z"/>
+            </svg>
+            Reveille's Skate School
+            <span class="text-xl text-[#AAAAAA] font-bold">WHOOP!</span>
+        </h1>
+        <p class="text-center text-gray-600 font-semibold border-b pb-4 border-[#500000]/20">
+            Let the First Lady of Aggieland critique your form! Gig 'Em!
+        </p>
+
+        <div class="space-y-4 text-gray-700">
+            <label for="videoFile" class="block text-sm font-extrabold text-[#500000] uppercase tracking-wider">Upload Your Skating Video (Show that 12th Man hustle!)</label>
+            <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="block w-full text-sm text-gray-600 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-base file:font-bold file:bg-[#500000]/10 file:text-[#500000] hover:file:bg-[#500000]/20 transition duration-150 rounded-lg p-2 border-2 border-dashed border-[#500000]/40 cursor-pointer">
+            
+            <label for="skatingMove" class="block text-sm font-extrabold text-[#500000] uppercase tracking-wider pt-2">What move are you doing, future Aggie legend?</label>
+            <input type="text" id="skatingMove" placeholder="e.g., Kickflip, Ollie, Heel Flip (Must be perfect, just like the Corps!)" class="w-full px-4 py-3 border-2 border-[#500000]/40 rounded-lg focus:ring-4 focus:ring-[#500000]/50 focus:border-[#500000]" value="Kickflip">
+
+            <button id="analyzeBtn" class="w-full bg-[#500000] text-white py-4 rounded-xl font-black uppercase text-lg tracking-widest shadow-xl hover:bg-[#400000] transition duration-200 focus:outline-none focus:ring-4 focus:ring-[#500000] focus:ring-opacity-70 disabled:bg-[#500000]/50">
+                A-RUFF! START ANALYSIS
+            </button>
+        </div>
+
+        <!-- Analysis Output Section -->
+        <div id="outputSection" class="pt-6 border-t border-[#500000]/30 hidden">
+            <h2 class="text-xl font-extrabold text-[#500000] mb-3 border-b border-[#500000]/20 pb-2">Reveille's Official Critique</h2>
+            <div id="analysisOutput" class="advice-box p-4 bg-gray-50 rounded-lg text-gray-800 border-2 border-[#AAAAAA] min-h-[150px] shadow-inner">
+                <!-- Analysis results will appear here -->
+            </div>
+            <div id="loadingIndicator" class="text-[#500000] font-bold mt-4 text-center hidden">
+                <div class="animate-spin inline-block w-8 h-8 border-4 border-[#500000] border-t-transparent rounded-full mr-2"></div>
+                Reveille is watching... Analyzing the footage like a Corps Inspection. Stand by for the score!
+            </div>
+        </div>
+
+        <!-- Error/Message Box -->
+        <div id="messageBox" class="p-3 mt-4 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden" role="alert"></div>
+    </div>
+
+    <!-- START OF JAVASCRIPT LOGIC -->
     <script>
-        // Variables defined globally for subsequent script access.
+        // Global Variables for API
         __app_id = typeof __app_id !== 'undefined' ? __app_id : 'skating-aggie-coach';
-        // IMPORTANT: Ensure your actual API key is inserted here if deploying publicly!
-        const apiKey = "AIzaSyAqjc5HsMnGu7vv_6kkXLeuHyZu2CmOx-0"; // Replace with your key!
+        // IMPORTANT: INSERT YOUR WORKING API KEY HERE!
+        const apiKey = "AIzaSyAqjc5HsMnGu7vv_6kkXLeuHyZu2CmOx-0"; 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
         const videoFileEl = document.getElementById('videoFile');
@@ -72,10 +114,10 @@
 
         /**
          * Helper function to convert raw text with newlines (\n) 
-         * into browser-friendly HTML line breaks (<br>).
+         * into browser-friendly HTML line breaks (<br>). This ensures proper spacing.
          */
         function formatTextForDisplay(text) {
-            // Replace all newline characters with <br> tags for visual formatting.
+            // This is the fix for the formatting issue you reported earlier.
             if (text) {
                 return text.replace(/\n/g, '<br>');
             }
