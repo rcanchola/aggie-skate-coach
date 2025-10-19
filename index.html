@@ -146,36 +146,46 @@
     
     <!-- JavaScript Logic -->
     <script>
-        // --- 1. CONFIGURATION ---
-        // IMPORTANT: Insert your Gemini API Key here inside the quotes.
+        // Variables defined globally for subsequent script access.
+        __app_id = typeof __app_id !== 'undefined' ? __app_id : 'skating-aggie-coach';
+        
+        // CRITICAL: Insert your Gemini API key here for public deployment.
         const apiKey = "AIzaSyAqjc5HsMnGu7vv_6kkXLeuHyZu2CmOx-0"; 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
-        // --- 2. DOM REFERENCES ---
+        // DOM Elements
         const videoFileEl = document.getElementById('videoFile');
-        const userPromptEl = document.getElementById('userPrompt');
+        const skatingMoveEl = document.getElementById('skatingMove');
         const analyzeBtn = document.getElementById('analyzeBtn');
         const analysisOutput = document.getElementById('analysisOutput');
         const outputSection = document.getElementById('outputSection');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const messageBox = document.getElementById('messageBox');
-        const videoLinksBox = document.getElementById('videoLinksBox'); // NEW REFERENCE
-        const videoLinksContent = document.getElementById('videoLinksContent'); // NEW REFERENCE
-        const reveilleGreetingEl = document.getElementById('reveilleGreeting');
 
-        // --- 3. UTILITY FUNCTIONS ---
+        /**
+         * Helper function to convert raw text with newlines (\n) 
+         * into browser-friendly HTML line breaks (<br>).
+         * NOTE: This version is the simple fix from the conversation history.
+         * The correct fix requires full Markdown parsing, which we will use below.
+         */
+        function formatTextForDisplay(text) {
+            if (text) {
+                return text.replace(/\n/g, '<br>');
+            }
+            return '';
+        }
         
         /**
          * Clears and displays a message in the dedicated message box.
          */
         function showMessage(message, type = 'error') {
             messageBox.textContent = message;
-            messageBox.className = `p-3 mt-4 rounded-lg font-medium text-sm ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
+            messageBox.className = `p-3 mt-4 rounded-lg font-medium ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
             messageBox.classList.remove('hidden');
         }
 
         /**
-         * Converts a File object to a GenerativePart object (Base64 data).
+         * Converts a File object to a GenerativePart object for the API payload.
          */
         async function fileToGenerativePart(file) {
             const base64Data = await new Promise((resolve, reject) => {
@@ -192,74 +202,6 @@
                 },
             };
         }
-
-        /**
-         * Converts simple Markdown (bolding, headers, lists) to HTML.
-         * @param {string} text The markdown text to format.
-         * @returns {string} The formatted HTML string.
-         */
-        function formatMarkdown(text) {
-            // 1. Convert **bold** to <strong>bold</strong>
-            let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-            // 2. Convert headers (##) to <h2>
-            html = html.replace(/^##\s*(.*)$/gm, '<h2 class="text-xl font-semibold mt-4 mb-2">$1</h2>');
-
-            // 3. Convert bullet points (* item) to <ul> and <li>
-            // Find all list items and wrap them in <ul>
-            const listRegex = /^[\*-]\s*(.*)$/gm;
-            const listMatches = html.match(listRegex);
-            
-            if (listMatches) {
-                let listHtml = '<ul>';
-                for (const match of listMatches) {
-                    listHtml += `<li class="ml-4 list-disc">${match.replace(/^[\*-]\s*/, '')}</li>`;
-                }
-                listHtml += '</ul>';
-
-                // Replace the first matched list pattern with the full <ul> block, 
-                // and replace subsequent list patterns with empty strings to avoid duplication.
-                html = html.replace(listRegex, (match, p1, offset, string) => {
-                    const isFirstMatch = string.indexOf(match) === offset;
-                    return isFirstMatch ? listHtml : '';
-                });
-
-                // Simple cleanup to ensure the list block is unique
-                html = html.replace(/<\/ul><ul>/g, ''); 
-            }
-            
-            // 4. Convert newlines to <br> for basic paragraph breaks
-            html = html.replace(/\n/g, '<br>');
-
-            return html;
-        }
-
-        /**
-         * Extracts and formats video links from a block of text (Markdown style: [Title](URL)).
-         * @param {string} text The text block containing video links.
-         * @returns {string} HTML string containing clickable buttons.
-         */
-        function formatVideoLinks(text) {
-            const linkRegex = /\[(.*?)\]\((.*?)\)/g;
-            let html = '';
-            let match;
-
-            while ((match = linkRegex.exec(text)) !== null) {
-                const title = match[1];
-                const url = match[2];
-                
-                html += `
-                    <a href="${url}" target="_blank" 
-                       class="w-full inline-flex items-center justify-center p-3 text-center bg-[#500000] hover:bg-[#800000] text-white font-semibold rounded-lg shadow-md transition duration-150 ease-in-out">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.659.251-4.735.603-5.584 1.25-1.558 1.189-1.996 3.123-2.001 5.485.005 2.362.443 4.296 2.001 5.485.849.647 1.925.999 5.584 1.25 3.6.246 11.626.245 15.23 0 3.659-.251 4.735-.603 5.584-1.25 1.558-1.189 1.996-3.123 2.001-5.485-.005-2.362-.443-4.296-2.001-5.485-.849-.647-1.925-.999-5.584-1.25zm-1.127 8.816l-7.794 4.5 0-9 7.794 4.5z"/></svg>
-                        ${title}
-                    </a>
-                `;
-            }
-
-            return html;
-        }
-
 
         /**
          * Executes the API call to Gemini with exponential backoff.
@@ -282,6 +224,7 @@
             } catch (error) {
                 if (retries > 0) {
                     const delay = Math.pow(2, 3 - retries) * 1000;
+                    console.warn(`Retrying in ${delay}ms...`, error.message);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchWithBackoff(payload, retries - 1);
                 }
@@ -290,47 +233,58 @@
         }
 
 
-        // --- 4. MAIN ANALYSIS HANDLER ---
         async function handleAnalysis() {
             // Reset state
             messageBox.classList.add('hidden');
-            analysisOutput.textContent = 'Generating analysis...';
-            videoLinksContent.innerHTML = '';
-            outputSection.classList.remove('hidden');
-            videoLinksBox.classList.add('hidden'); // Hide links box until populated
+            analysisOutput.textContent = '';
+            // outputSection.classList.remove('hidden'); // This should likely stay visible
             loadingIndicator.classList.remove('hidden');
             analyzeBtn.disabled = true;
-            reveilleGreetingEl.classList.add('hidden');
-
 
             const file = videoFileEl.files[0];
-            const userQuery = userPromptEl.value.trim();
+            const moveName = skatingMoveEl.value.trim();
 
-            if (!file || !userQuery) {
-                showMessage('Please select a video and provide an analysis request.', 'error');
+            if (!file) {
+                showMessage('A-Ruff! Please show Reveille a video! We need to see the action.');
                 loadingIndicator.classList.add('hidden');
                 analyzeBtn.disabled = false;
                 return;
             }
             
             if (file.size > 20 * 1024 * 1024) {
-                 showMessage("That's a big file! Please select a video under 20MB.", 'error');
+                 showMessage('That file is bigger than the Aggie bonfire! We can only handle clips under 20MB for immediate analysis. Try a shorter one!');
                  loadingIndicator.classList.add('hidden');
                  analyzeBtn.disabled = false;
                  return;
             }
 
+            if (!moveName) {
+                showMessage('Good Dog! You missed a step. Tell Reveille what trick you\'re trying to land.');
+                loadingIndicator.classList.add('hidden');
+                analyzeBtn.disabled = false;
+                 return;
+            }
+
             try {
+                // 1. Convert video file to a Part object
                 const videoPart = await fileToGenerativePart(file);
 
-                // --- PROMPT ENGINEERING ---
-                const systemPrompt = "You are Reveille, the world's most disciplined collie and a legendary skate coach. You must give feedback that is encouraging, structured, and helpful. ALWAYS follow this strict output format:\n\n1. Start with a friendly, Aggie-themed greeting (e.g., Howdy! Gig 'Em! A-Ruff!).\n2. Provide a critique of the video. Use **bolding** and *bullet points* for clarity.\n3. End your response with a section titled '## Film Study - Whoop!' followed by 1-3 highly relevant YouTube video links using the Markdown format: [Video Title](URL). If no links are available, state 'No recommended links at this time.'\n\nExample Link Format: [Best Ollie Tutorial](https://youtube.com/watch?v=12345)";
+                // 2. Define the Reveille-themed system instruction (The AI's persona)
+                const systemPrompt = `You are Reveille, the official mascot and First Lady of Aggieland. You are a highly focused, encouraging, and spirited skateboarding coach. Analyze the user's video of a ${moveName}. 
+                Provide three to four extremely concise, actionable points of advice for immediate improvement. Your response MUST start with a short, encouraging introductory paragraph (1-2 sentences). 
+                The advice MUST be formatted using a clear Markdown bulleted list and MUST use bolding on key terms, tricks, and Aggie references to maximize visual appeal and readability. 
+                Crucially, at the very end of your advice, you MUST include the two high-quality YouTube links (URLs) under a Markdown H2 heading (## Film Study - Whoop!) to clearly separate the links from the critique.
+                Your feedback MUST be highly personalized with dog-themed and Texas A&M cultural references (e.g., barks, "Good Dog!", "Corps of Cadets," "Gig 'em," "whoop"). If the video they send is not related to skating, do not give advice, and instead suggest the user to upload a video relating to a skating trick or skill.
+                Start your response with "A-Ruff! Howdy, Aggie Skater! Here is Reveille's quick critique on your ${moveName}:"`;
                 
+                const userQuery = `Analyze this video of me attempting a ${moveName}. Give me specific improvement advice on stance, timing, and execution, as if you were coaching me at Kyle Field.`;
+
+                // 3. Construct the Multimodal Payload
                 const payload = {
                     contents: [
                         { parts: [
-                            videoPart,
-                            { text: userQuery }
+                            videoPart, // The video data part
+                            { text: userQuery } // The text prompt
                         ] }
                     ],
                     systemInstruction: {
@@ -338,31 +292,17 @@
                     },
                 };
                 
-                // 4. Call the API, enabling Google Search for grounding (video links)
+                // 4. Call the API (using Google Search grounding for YouTube links)
                 const result = await fetchWithBackoff({ ...payload, tools: [{ "google_search": {} }] });
 
                 // 5. Extract and display the result
-                const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 
                 if (generatedText) {
-                    const [critiqueText, linksText] = generatedText.split('## Film Study - Whoop!');
-                    
-                    // Display Critique
-                    if (critiqueText) {
-                        analysisOutput.innerHTML = formatMarkdown(critiqueText.trim());
-                    } else {
-                        analysisOutput.textContent = "Analysis complete, but the critique format was unexpected.";
-                    }
-                    
-                    // Display Links
-                    if (linksText && linksText.trim() !== 'No recommended links at this time.') {
-                        videoLinksContent.innerHTML = formatVideoLinks(linksText.trim());
-                        videoLinksBox.classList.remove('hidden');
-                    }
-                    
-                    // Always show the greeting element after the process is complete
-                    reveilleGreetingEl.classList.remove('hidden');
-
+                    // Use formatTextForDisplay to convert newlines to <br> tags, 
+                    // which is necessary for correct line spacing with innerHTML.
+                    const formattedHtml = formatTextForDisplay(generatedText);
+                    analysisOutput.innerHTML = formattedHtml;
                 } else {
                     showMessage("Analysis failed to return text. Even Reveille can't make sense of that! Try a different video or prompt. Good Dog!");
                 }
