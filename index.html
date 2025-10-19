@@ -26,7 +26,7 @@
         animation: pan-background 40s linear infinite alternate; /* Apply the animation */
     }
 
-    /* NEW: Keyframe animation for the background pan */
+    /* Keyframe animation for the background pan */
     @keyframes pan-background {
         0% {
             background-position: 0% 50%;
@@ -88,7 +88,7 @@
 <body class="p-4 md:p-8 min-h-screen flex items-center justify-center">
 
     <main class="w-full max-w-6xl">
-        <h1 class="font-['Bungee'] text-5xl md:text-6xl text-center text-[#500000] mb-8 tracking-wider">
+        <h1 class="font-['Bungee'] text-5xl md:text-6xl text-center text-white mb-8 tracking-wider">
             REVEILLE'S SKATE SCHOOL
         </h1>
         <p id="reveilleGreeting" class="text-center font-bold text-lg mb-8 text-white hidden">
@@ -98,30 +98,32 @@
         <!-- Main Grid Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- INPUT COLUMN -->
-            <div class="bg-white p-6 md:p-8 rounded-xl shadow-2xl border border-gray-300">
-                <h2 class="text-2xl font-bold text-[#500000] mb-4 border-b pb-2">1. Your Footage (Gig 'Em!)</h2>
-                <div class="space-y-6">
-                    <div>
-                        <label for="videoFile" class="block text-sm font-extrabold text-gray-700 uppercase tracking-wider mb-1">Upload Your Skating Video (Max 20MB)</label>
-                        <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="block w-full text-sm text-gray-600 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-base file:font-bold file:bg-[#500000]/10 file:text-[#500000] hover:file:bg-[#500000]/20 transition duration-150 rounded-lg p-2 border-2 border-dashed border-[#500000]/40 cursor-pointer">
-                    </div>
-                    
-                    <div>
-                        <label for="userPrompt" class="block text-sm font-extrabold text-gray-700 uppercase tracking-wider mb-1">What trick are you doing?</label>
-                        <input type="text" id="userPrompt" placeholder="e.g., Kickflip, Ollie, 360 Flip" class="w-full px-4 py-3 border-2 border-[#500000]/40 rounded-lg focus:ring-4 focus:ring-[#500000]/50 focus:border-[#500000]" value="Kickflip">
-                    </div>
+            <div class="flex flex-col">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b pb-2">1. Your Footage (Gig 'Em!)</h2>
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-2xl border border-gray-300">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="videoFile" class="block text-sm font-extrabold text-gray-700 uppercase tracking-wider mb-1">Upload Your Skating Video (Max 20MB)</label>
+                            <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="block w-full text-sm text-gray-600 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-base file:font-bold file:bg-[#500000]/10 file:text-[#500000] hover:file:bg-[#500000]/20 transition duration-150 rounded-lg p-2 border-2 border-dashed border-[#500000]/40 cursor-pointer">
+                        </div>
+                        
+                        <div>
+                            <label for="userPrompt" class="block text-sm font-extrabold text-gray-700 uppercase tracking-wider mb-1">What trick are you doing?</label>
+                            <input type="text" id="userPrompt" placeholder="e.g., Kickflip, Ollie, 360 Flip" class="w-full px-4 py-3 border-2 border-[#500000]/40 rounded-lg focus:ring-4 focus:ring-[#500000]/50 focus:border-[#500000]" value="Kickflip">
+                        </div>
 
-                    <button id="analyzeBtn" class="w-full bg-[#500000] text-white py-4 rounded-xl font-black uppercase text-lg tracking-widest shadow-xl hover:bg-[#400000] transition duration-200 focus:outline-none focus:ring-4 focus:ring-[#500000] focus:ring-opacity-70 disabled:bg-[#500000]/50">
-                        START ANALYSIS! (WHOOP!)
-                    </button>
-                    
-                    <div id="messageBox" class="hidden p-3 mt-4 rounded-lg font-medium text-sm"></div>
+                        <button id="analyzeBtn" class="w-full bg-[#500000] text-white py-4 rounded-xl font-black uppercase text-lg tracking-widest shadow-xl hover:bg-[#400000] transition duration-200 focus:outline-none focus:ring-4 focus:ring-[#500000] focus:ring-opacity-70 disabled:bg-[#500000]/50">
+                            START ANALYSIS! (WHOOP!)
+                        </button>
+                        
+                        <div id="messageBox" class="hidden p-3 mt-4 rounded-lg font-medium text-sm"></div>
+                    </div>
                 </div>
             </div>
 
             <!-- OUTPUT COLUMN -->
             <div id="outputContainer" class="flex flex-col">
-                <h2 class="text-2xl font-bold text-[#500000] mb-4 border-b pb-2">2. Reveille's Official Critique</h2>
+                <h2 class="text-2xl font-bold text-white mb-4 border-b pb-2">2. Reveille's Official Critique</h2>
 
                 <div id="loadingIndicator" class="text-white font-bold mt-4 text-center hidden">
                     <div class="animate-spin inline-block w-8 h-8 border-4 border-white border-t-transparent rounded-full mr-2"></div>
