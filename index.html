@@ -248,23 +248,11 @@
 
             try {
                 const videoPart = await fileToGenerativePart(file);
-                // UPDATED: Telling the AI to provide the full HTML for the video player.
-                const systemPrompt = `You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. 
-                
-At the end of your response, create a distinct section under a bolded, enlarged header: Film Study. 
-
-In this section, you **MUST** find 1-2 relevant YouTube tutorial videos and provide the full HTML embed code for each. **Do not** provide just the link. You must provide the complete HTML \`<iframe>\` wrapped in a responsive \`div\` like this example:
-
-\`\`\`html
-<div class="video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20">
-  <iframe src="https://www.youtube.com/embed/VIDEO_ID" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-</div>
-\`\`\`
-
-Replace \`VIDEO_ID\` with the actual ID of the YouTube video, and make sure the youtube embed works correctly. If you cannot find a valid video, state 'No relevant tutorials found.'`;
+                // UPDATED: Final, most robust prompt. Asks for ONLY the video ID.
+                const systemPrompt = `You are Reveille, a legendary skate coach. Give helpful, structured feedback. At the end of your response, create a section under the header: ## Film Study. In this section, you **MUST** provide 1-2 YouTube video IDs. A video ID is the 11-character string in a YouTube URL (e.g., for '...watch?v=dQw4w9WgXcQ', the ID is 'dQw4w9WgXcQ'). **ONLY PROVIDE THE 11-CHARACTER VIDEO ID(s)**. Do not add any other text, titles, punctuation, or URLs in this section. Each ID must be on its own line. If you cannot find a valid video, state 'No relevant tutorials found.'`;
                 
                 const payload = {
-                    contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice on stance, timing, and execution. Start with a friendly greeting and end with a sign-off.` }] }],
+                    contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice. Start with a friendly greeting and end with a sign-off.` }] }],
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     tools: [{ "google_search": {} }]
                 };
@@ -273,39 +261,62 @@ Replace \`VIDEO_ID\` with the actual ID of the YouTube video, and make sure the 
                 const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
                 
                 if (generatedText) {
-                    let critiqueText = generatedText;
-                    let videoHtmlSection = '';
+                    // --- FINAL, MOST ROBUST LOGIC ---
 
-                    const videoSectionRegex = /(^##\s*Film\s*Study.*)/is; // 's' flag for dotall
-                    const match = generatedText.match(videoSectionRegex);
-                    
-                    if (match && match.index > -1) {
-                        critiqueText = generatedText.substring(0, match.index).trim();
-                        videoHtmlSection = generatedText.substring(match.index).trim();
-                        // Clean up markdown code blocks from the HTML section
-                        videoHtmlSection = videoHtmlSection.replace(/```html\n|```/g, '');
-                    } else {
-                        critiqueText = generatedText;
-                    }
+                    // Regex to find all potential video IDs in the entire response
+                    // It looks for a standalone 11-character string of valid YouTube ID characters.
+                    const idRegex = /\b[a-zA-Z0-9_-]{11}\b/g;
+                    const foundIds = generatedText.match(idRegex) || [];
 
-                    // Render the critique part using markdown formatter
+                    // Remove the "Film Study" section from the text to create a clean critique
+                    const videoSectionRegex = /##\s*Film\s*Study[\s\S]*/i;
+                    const critiqueText = generatedText.replace(videoSectionRegex, '').trim();
+
+                    // Display the clean critique
                     analysisOutput.innerHTML = formatSimpleMarkdown(critiqueText);
                     analysisOutput.classList.remove('hidden');
 
-                    // --- REVISED: Render the video part ---
-                    videoLinksBox.innerHTML = ''; // Clear the box
-                    if (videoHtmlSection) {
-                        // The AI provides the "## Film Study" line, convert it to an H3
-                        const processedHtml = videoHtmlSection.replace(
-                            /^##\s*(.*)$/m, 
-                            '<h3 class="text-xl font-bold text-[#500000] mb-4">$1</h3>'
-                        );
-                        // Directly insert the HTML provided by the AI
-                        videoLinksBox.innerHTML = processedHtml;
+                    // Build the video player box if we found any IDs
+                    videoLinksBox.innerHTML = ''; // Always clear the box
+                    if (foundIds.length > 0) {
+                        const header = document.createElement('h3');
+                        header.className = 'text-xl font-bold text-[#500000] mb-4';
+                        header.textContent = 'Film Study';
+                        videoLinksBox.appendChild(header);
+
+                        foundIds.forEach(videoId => {
+                            // Build the player ourselves to guarantee it's correct
+                            const playerContainer = document.createElement('div');
+                            playerContainer.className = 'video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20';
+                            
+                            const iframe = document.createElement('iframe');
+                            iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                            iframe.setAttribute('frameborder', '0');
+                            iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+                            iframe.setAttribute('allowfullscreen', true);
+                            
+                            playerContainer.appendChild(iframe);
+                            videoLinksBox.appendChild(playerContainer);
+                        });
+                        
                         videoLinksBox.classList.remove('hidden');
+                    } else {
+                        // Optional: Check if the AI tried to say "No tutorials found" and show it
+                        const filmStudyMatch = generatedText.match(/##\s*Film\s*Study(.*)/is);
+                        if (filmStudyMatch && filmStudyMatch[1].trim()) {
+                            const header = document.createElement('h3');
+                            header.className = 'text-xl font-bold text-[#500000] mb-4';
+                            header.textContent = 'Film Study';
+                            videoLinksBox.appendChild(header);
+                            const fallbackText = document.createElement('p');
+                            fallbackText.textContent = filmStudyMatch[1].trim();
+                            videoLinksBox.appendChild(fallbackText);
+                            videoLinksBox.classList.remove('hidden');
+                        }
                     }
                     
                     reveilleGreetingEl.classList.remove('hidden');
+
                 } else {
                     showMessage("Analysis failed to return text. Please try again.", 'error');
                 }
