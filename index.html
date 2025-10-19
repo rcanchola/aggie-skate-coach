@@ -248,7 +248,7 @@
 
             try {
                 const videoPart = await fileToGenerativePart(file);
-                // UPDATED: Final, most robust prompt. Asks for ONLY the video ID.
+                // The most reliable prompt yet. Asks for ONLY the video ID.
                 const systemPrompt = `You are Reveille, a legendary skate coach. Give helpful, structured feedback. At the end of your response, create a section under the header: ## Film Study. In this section, you **MUST** provide 1-2 YouTube video IDs. A video ID is the 11-character string in a YouTube URL (e.g., for '...watch?v=dQw4w9WgXcQ', the ID is 'dQw4w9WgXcQ'). **ONLY PROVIDE THE 11-CHARACTER VIDEO ID(s)**. Do not add any other text, titles, punctuation, or URLs in this section. Each ID must be on its own line. If you cannot find a valid video, state 'No relevant tutorials found.'`;
                 
                 const payload = {
@@ -263,20 +263,19 @@
                 if (generatedText) {
                     // --- FINAL, MOST ROBUST LOGIC ---
 
-                    // Regex to find all potential video IDs in the entire response
-                    // It looks for a standalone 11-character string of valid YouTube ID characters.
+                    // 1. Find all potential video IDs in the entire response
                     const idRegex = /\b[a-zA-Z0-9_-]{11}\b/g;
                     const foundIds = generatedText.match(idRegex) || [];
 
-                    // Remove the "Film Study" section from the text to create a clean critique
+                    // 2. Remove the "Film Study" section from the text to create a clean critique
                     const videoSectionRegex = /##\s*Film\s*Study[\s\S]*/i;
                     const critiqueText = generatedText.replace(videoSectionRegex, '').trim();
 
-                    // Display the clean critique
+                    // 3. Display the clean critique
                     analysisOutput.innerHTML = formatSimpleMarkdown(critiqueText);
                     analysisOutput.classList.remove('hidden');
 
-                    // Build the video player box if we found any IDs
+                    // 4. Build the video player box if we found any IDs
                     videoLinksBox.innerHTML = ''; // Always clear the box
                     if (foundIds.length > 0) {
                         const header = document.createElement('h3');
