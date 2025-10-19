@@ -251,7 +251,7 @@
                 // UPDATED: Telling the AI to provide the full HTML for the video player.
                 const systemPrompt = `You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. 
                 
-At the end of your response, create a distinct section under a bolded, enlarged header: ## Film Study. 
+At the end of your response, create a distinct section under a bolded, enlarged header: Film Study. 
 
 In this section, you **MUST** find 1-2 relevant YouTube tutorial videos and provide the full HTML embed code for each. **Do not** provide just the link. You must provide the complete HTML \`<iframe>\` wrapped in a responsive \`div\` like this example:
 
@@ -261,7 +261,7 @@ In this section, you **MUST** find 1-2 relevant YouTube tutorial videos and prov
 </div>
 \`\`\`
 
-Replace \`VIDEO_ID\` with the actual ID of the YouTube video. If you cannot find a valid video, state 'No relevant tutorials found.'`;
+Replace \`VIDEO_ID\` with the actual ID of the YouTube video, and make sure the youtube embed works correctly. If you cannot find a valid video, state 'No relevant tutorials found.'`;
                 
                 const payload = {
                     contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice on stance, timing, and execution. Start with a friendly greeting and end with a sign-off.` }] }],
