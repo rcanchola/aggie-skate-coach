@@ -245,7 +245,7 @@
 
             try {
                 const videoPart = await fileToGenerativePart(file);
-                const systemPrompt = "You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. At the end of your response, create a distinct section under a bolded, enlarged header: ## Film Study. In this section, you **MUST** provide 1-2 full, direct YouTube video URLs for tutorials on the trick. The links **MUST** be complete URLs that start with `https://www.youtube.com`. **Do not** provide any other type of link, like search result links. Do not just write the video title. If you cannot find a valid YouTube link, state 'No relevant tutorials found.' Start with a greeting and end with a sign-off. If the video is not about skateboarding, politely decline to give advice and ask for a skate video.";
+                const systemPrompt = "You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. At the end of your response, create a distinct section under a bolded, enlarged header: ## Film Study. In this section, you **MUST** provide 1-2 full, direct YouTube video URLs. The links **MUST** be complete URLs that start with `https://www.youtube.com`. **Do not** add any extra text, titles, or bullet points in this section—only the links. If you cannot find a valid YouTube link, state 'No relevant tutorials found.'";
                 
                 const payload = {
                     contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice on stance, timing, and execution.` }] }],
@@ -260,54 +260,48 @@
                     let critiqueText = generatedText;
                     let linksText = '';
 
-                    const linksHeaderRegex = /(^##\s*Film\s*Study)/im;
+                    const linksHeaderRegex = /(^##\s*Film\s*Study.*)/im;
                     const match = generatedText.match(linksHeaderRegex);
                     
-                    if (match) {
+                    if (match && match.index > -1) {
                         const splitIndex = match.index;
                         critiqueText = generatedText.substring(0, splitIndex).trim();
                         linksText = generatedText.substring(splitIndex).trim();
+                    } else {
+                        critiqueText = generatedText;
                     }
 
                     analysisOutput.innerHTML = formatSimpleMarkdown(critiqueText);
                     analysisOutput.classList.remove('hidden');
-
-                    // --- REVISED VIDEO PLAYER LOGIC ---
+                    
+                    // --- COMPLETELY REVISED VIDEO PLAYER LOGIC ---
+                    videoLinksBox.innerHTML = ''; // Always clear the video box first
                     if (linksText) {
-                        videoLinksBox.innerHTML = ''; // Clear previous content
-
-                        const header = document.createElement('h3');
-                        header.className = 'text-xl font-bold text-[#500000] mb-4';
-                        header.textContent = 'Film Study';
-                        videoLinksBox.appendChild(header);
-
-                        const urlRegex = /https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[\w-]+/g;
-                        const links = linksText.match(urlRegex) || [];
-
-                        const youtubeRegex = /(?:watch\?v=)([\w-]+)/;
+                        const urlRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/g;
+                        const links = [...linksText.matchAll(urlRegex)];
                         
                         if (links.length > 0) {
-                            links.forEach(link => {
-                                const match = link.match(youtubeRegex);
-                                if (match && match[1]) {
-                                    const videoId = match[1];
-                                    const playerContainer = document.createElement('div');
-                                    playerContainer.className = 'video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20';
-                                    const iframe = document.createElement('iframe');
-                                    iframe.src = `https://www.youtube.com/embed/${videoId}`;
-                                    iframe.setAttribute('frameborder', '0');
-                                    iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-                                    iframe.setAttribute('allowfullscreen', true);
-                                    playerContainer.appendChild(iframe);
-                                    videoLinksBox.appendChild(playerContainer);
-                                }
+                            const header = document.createElement('h3');
+                            header.className = 'text-xl font-bold text-[#500000] mb-4';
+                            header.textContent = 'Film Study';
+                            videoLinksBox.appendChild(header);
+
+                            links.forEach(linkMatch => {
+                                const videoId = linkMatch[1]; // The video ID is the first capture group
+                                const playerContainer = document.createElement('div');
+                                playerContainer.className = 'video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20';
+                                const iframe = document.createElement('iframe');
+                                iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                                iframe.setAttribute('frameborder', '0');
+                                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+                                iframe.setAttribute('allowfullscreen', true);
+                                playerContainer.appendChild(iframe);
+                                videoLinksBox.appendChild(playerContainer);
                             });
                         } else {
-                            const noLinksMessage = document.createElement('p');
-                            noLinksMessage.textContent = 'No relevant tutorials were found in the feedback.';
-                            videoLinksBox.appendChild(noLinksMessage);
+                            // If the AI gave a "Film Study" section but no links were found inside it.
+                            videoLinksBox.innerHTML = formatSimpleMarkdown(linksText);
                         }
-                        
                         videoLinksBox.classList.remove('hidden');
                     }
                     
