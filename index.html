@@ -48,8 +48,7 @@
     .advice-box ul, .bot-message ul { list-style: disc; padding-left: 20px; margin-top: 0.5rem; margin-bottom: 0.5rem; }
     .advice-box li, .bot-message li { margin-bottom: 0.25rem; }
     .advice-box p, .bot-message p { margin-bottom: 0.5rem; }
-    .advice-box strong, .bot-message strong { color: var(--aggie-maroon); }
-
+    .advice-box strong, .bot-message strong { color: var(--aggie-maroon); font-weight: 600; }
 
     /* Chat UI */
     .chat-message { padding: 0.75rem 1rem; border-radius: 1.25rem; margin-bottom: 0.5rem; max-width: 80%; word-wrap: break-word; line-height: 1.5; }
@@ -79,6 +78,40 @@
         0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
         70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
     }
+    
+    /* Timestamp Marker Styles */
+    .timestamp-marker {
+        position: absolute;
+        bottom: 5px; /* Adjust based on video control height */
+        width: 8px;
+        height: 8px;
+        background-color: #fff;
+        border: 2px solid var(--aggie-maroon);
+        border-radius: 50%;
+        transform: translateX(-50%);
+        cursor: pointer;
+        z-index: 10;
+    }
+    .timestamp-marker .tooltip {
+        visibility: hidden;
+        width: 120px;
+        background-color: var(--aggie-maroon);
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px 0;
+        position: absolute;
+        z-index: 1;
+        bottom: 150%;
+        left: 50%;
+        margin-left: -60px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    .timestamp-marker:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
     </style>
 </head>
 <body class="p-4 md:p-8 min-h-screen flex justify-center bg-gray-900">
@@ -104,9 +137,10 @@
                     <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="block w-full text-sm text-white/80 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-base file:font-bold file:bg-white/10 file:text-white hover:file:bg-white/20 transition duration-150 rounded-lg p-2 border-2 border-dashed border-white/40 cursor-pointer">
                 </div>
 
-                <!-- NEW: Video Preview Container -->
-                <div id="videoPreviewContainer" class="hidden">
+                <!-- Video Preview Container -->
+                <div id="videoPreviewContainer" class="hidden relative">
                     <video id="videoPreviewPlayer" class="w-full rounded-lg border-2 border-white/30" controls></video>
+                    <div id="timestampMarkersContainer" class="absolute bottom-0 w-full h-10 pointer-events-none"></div>
                 </div>
 
                 <div>
@@ -159,7 +193,7 @@
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
         // --- 2. DOM REFERENCES ---
-        const allDOMElements = {
+        const dom = {
             videoFile: document.getElementById('videoFile'),
             userPrompt: document.getElementById('userPrompt'),
             analyzeBtn: document.getElementById('analyzeBtn'),
@@ -177,17 +211,19 @@
             messageBox: document.getElementById('messageBox'),
             reveilleGreeting: document.getElementById('reveilleGreeting'),
             videoPreviewContainer: document.getElementById('videoPreviewContainer'),
-            videoPreviewPlayer: document.getElementById('videoPreviewPlayer')
+            videoPreviewPlayer: document.getElementById('videoPreviewPlayer'),
+            timestampMarkersContainer: document.getElementById('timestampMarkersContainer')
         };
 
         let chatHistory = [];
+        let videoTimestamps = [];
 
         // --- 3. UTILITY FUNCTIONS ---
         
         function showMessage(message, type = 'error') {
-            allDOMElements.messageBox.textContent = message;
-            allDOMElements.messageBox.className = `p-3 mt-4 rounded-lg font-medium text-sm ${type === 'error' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
-            allDOMElements.messageBox.classList.remove('hidden');
+            dom.messageBox.textContent = message;
+            dom.messageBox.className = `p-3 mt-4 rounded-lg font-medium text-sm ${type === 'error' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
+            dom.messageBox.classList.remove('hidden');
         }
 
         async function fileToGenerativePart(file) {
@@ -202,8 +238,7 @@
 
         function parseMarkdown(text) {
             marked.setOptions({ gfm: true, breaks: true });
-            // Pre-process the text to fix common AI formatting errors like missing space after headers.
-            const fixedText = text.replace(/^(#+)(\S)/gm, '$1 $2');
+            const fixedText = text.replace(/^(#+)\s*(.*)/gm, '**$2**');
             return marked.parse(fixedText);
         }
 
@@ -228,10 +263,35 @@
                 throw error;
             }
         }
+        
+        function renderTimestamps() {
+            dom.timestampMarkersContainer.innerHTML = '';
+            const duration = dom.videoPreviewPlayer.duration;
+            if (!duration || !videoTimestamps) return;
+
+            videoTimestamps.forEach(({ time, label }) => {
+                const marker = document.createElement('div');
+                marker.className = 'timestamp-marker pointer-events-auto';
+                const percentage = (time / duration) * 100;
+                marker.style.left = `${percentage}%`;
+                
+                const tooltip = document.createElement('span');
+                tooltip.className = 'tooltip';
+                tooltip.textContent = label;
+                marker.appendChild(tooltip);
+
+                marker.addEventListener('click', () => {
+                    dom.videoPreviewPlayer.currentTime = time;
+                    dom.videoPreviewPlayer.play();
+                });
+                dom.timestampMarkersContainer.appendChild(marker);
+            });
+        }
+
 
         // --- 4. MAIN HANDLERS ---
         async function handleAnalysis() {
-            const { messageBox, outputContainer, outputContent, scoreOutput, chatContainer, loadingIndicator, analyzeBtn, reveilleGreeting, chatMessages, reveilleMascot, videoFile, userPrompt } = allDOMElements;
+            const { messageBox, outputContainer, outputContent, scoreOutput, chatContainer, loadingIndicator, analyzeBtn, reveilleGreeting, chatMessages, reveilleMascot, videoFile, userPrompt } = dom;
             
             messageBox.classList.add('hidden');
             outputContainer.classList.remove('hidden');
@@ -244,12 +304,15 @@
             reveilleGreeting.classList.remove('opacity-0');
             chatMessages.innerHTML = ''; 
             reveilleMascot.className = reveilleMascot.className.replace(/happy-animation|sad-animation/g, '');
+            dom.timestampMarkersContainer.innerHTML = '';
+            videoTimestamps = [];
+
 
             const file = videoFile.files[0];
             const userQuery = userPrompt.value.trim();
 
-            if (!file || !userQuery) {
-                showMessage('Please select a video and describe the trick.', 'error');
+            if (!file) {
+                showMessage('Please select a video file first.', 'error');
                 loadingIndicator.classList.add('hidden');
                 analyzeBtn.disabled = false;
                 analyzeBtn.classList.add('pulse-animation');
@@ -265,7 +328,15 @@
 
             try {
                 const videoPart = await fileToGenerativePart(file);
-                const systemPrompt = `You are Reveille, a legendary skate coach. Your response will be parsed as Markdown. At the very beginning of your critique, you MUST provide a score for the trick on its own line, formatted exactly as \`Execution Score: [number]/10\`. Then, continue with your helpful, structured feedback. **CRITICAL: For section titles like "Analysis of the Attempt" or "Next Steps", you MUST use bolding (e.g., \`**Analysis of the Attempt**\`), NOT headers (##).** Use standard Markdown for other formatting like \`* list item\`. Start with a greeting and end with a sign-off. Do not recommend videos. If the video the user uploads is not related to skating, do not give a score and instead encourage them to upload a video of them skating.`;                const initialUserMessage = `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice.`;
+                const systemPrompt = `You are Reveille, a legendary skate coach. Your response will be parsed as Markdown. At the very beginning of your critique, you MUST provide a score for the trick on its own line, formatted exactly as \`Execution Score: [number]/10\`.
+                
+Then, throughout your detailed analysis, identify key moments in the video (like Setup, Pop, Flick, Catch, Landing). For each moment, you MUST embed a special timestamp tag in your text, formatted exactly as \`[TIMESTAMP|seconds|Label]\`, where 'seconds' is the time in the video (e.g., 2.5) and 'Label' is a short name for that moment (e.g., Pop).
+
+Example of a sentence in your response: "Your pop at [TIMESTAMP|1.8|Pop] was solid, but the flick at [TIMESTAMP|2.1|Flick] could be faster."
+
+**CRITICAL: For section titles like "Analysis of the Attempt", you MUST use bolding (e.g., \`**Analysis of the Attempt**\`), NOT headers (##).** Use standard Markdown for other formatting (\`* list item\`). Start with a greeting and end with a sign-off. If the user inputs a video unrelated to skating, do not give a score or timestamps, and encourage them to upload a video relating to skating. Be a little medium/harsh on the score, but not too harsh, only to encourage improvement.`;
+                
+                const initialUserMessage = `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice and include timestamps for key moments.`;
 
                 const payload = { contents: [{ parts: [videoPart, { text: initialUserMessage }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
                 const result = await fetchWithBackoff(payload);
@@ -273,15 +344,23 @@
                 
                 if (critiqueText) {
                     chatHistory = [ { role: "user", parts: [{ text: initialUserMessage }] }, { role: "model", parts: [{ text: critiqueText }] } ];
-                    const scoreRegex = /Execution Score:\s*([\d\.]+)\/10/i;
-                    const scoreMatch = critiqueText.match(scoreRegex);
-                    let cleanCritique = critiqueText;
+                    
+                    const timestampRegex = /\[TIMESTAMP\|([\d\.]+)\|([^\]]+)\]/g;
+                    videoTimestamps = [...critiqueText.matchAll(timestampRegex)].map(match => ({
+                        time: parseFloat(match[1]),
+                        label: match[2]
+                    }));
 
+                    let cleanCritique = critiqueText.replace(timestampRegex, (match, time, label) => `<button class="font-bold text-[var(--aggie-maroon)] underline" onclick="document.getElementById('videoPreviewPlayer').currentTime=${time}; document.getElementById('videoPreviewPlayer').play();">${label} (${time}s)</button>`);
+
+                    const scoreRegex = /Execution Score:\s*([\d\.]+)\/10/i;
+                    const scoreMatch = cleanCritique.match(scoreRegex);
+                    
                     if (scoreMatch) {
                         const numericScore = parseFloat(scoreMatch[1]);
                         scoreValue.textContent = `${numericScore}/10`;
                         scoreOutput.classList.remove('hidden');
-                        cleanCritique = critiqueText.replace(scoreRegex, '').trim();
+                        cleanCritique = cleanCritique.replace(scoreRegex, '').trim();
                         
                         reveilleMascot.classList.remove('happy-animation', 'sad-animation');
                         void reveilleMascot.offsetWidth; 
@@ -294,6 +373,9 @@
                     outputContent.classList.add('slide-fade-in');
                     chatContainer.classList.remove('hidden');
                     chatContainer.classList.add('slide-fade-in');
+                    
+                    renderTimestamps();
+
                 } else {
                     showMessage("Analysis failed to return text. Please try again.", 'error');
                 }
@@ -308,7 +390,7 @@
         }
 
         async function handleChat() {
-            const { chatInput, chatMessages, sendChatBtn } = allDOMElements;
+            const { chatInput, chatMessages, sendChatBtn } = dom;
             const userMessage = chatInput.value.trim();
             if (!userMessage) return;
 
@@ -323,7 +405,7 @@
             sendChatBtn.disabled = true;
 
             try {
-                const systemPrompt = `You are Reveille, a legendary skate coach continuing a conversation. Your response will be parsed as Markdown. **CRITICAL: For section titles, use bolding (e.g., \`**Follow-up Tip**\`), NOT headers (##).** Use standard Markdown for other formatting (e.g., \`* list item\`). The user has already received your initial analysis. Answer their follow-up questions concisely and helpfully, maintaining your encouraging persona. Do not give a score in follow-up messages.`;
+                const systemPrompt = `You are Reveille, a legendary skate coach continuing a conversation. Your response will be parsed as Markdown. **CRITICAL: For section titles, use bolding (e.g., \`**Follow-up Tip**\`), NOT headers (##).** Use standard Markdown for other formatting (e.g., \`* list item\`). The user has already received your initial analysis. Answer their follow-up questions concisely and helpfully. Do not give a score or timestamps in follow-up messages.`;
                 const payload = { contents: chatHistory, systemInstruction: { parts: [{ text: systemPrompt }] }, };
                 const result = await fetchWithBackoff(payload);
                 const botResponseText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I had trouble thinking of a response.';
@@ -347,28 +429,30 @@
         }
 
         // --- 5. EVENT LISTENERS ---
-        allDOMElements.analyzeBtn.addEventListener('click', handleAnalysis);
-        allDOMElements.sendChatBtn.addEventListener('click', handleChat);
-        allDOMElements.chatInput.addEventListener('keydown', (e) => {
+        dom.analyzeBtn.addEventListener('click', handleAnalysis);
+        dom.sendChatBtn.addEventListener('click', handleChat);
+        dom.chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault(); 
                 handleChat();
             }
         });
-
-        // NEW: Event listener for video file input
-        allDOMElements.videoFile.addEventListener('change', (event) => {
-            const { videoPreviewContainer, videoPreviewPlayer } = allDOMElements;
+        dom.videoFile.addEventListener('change', (event) => {
             const file = event.target.files[0];
+            dom.timestampMarkersContainer.innerHTML = '';
+            videoTimestamps = [];
 
             if (file) {
                 const videoURL = URL.createObjectURL(file);
-                videoPreviewPlayer.src = videoURL;
-                videoPreviewContainer.classList.remove('hidden');
+                dom.videoPreviewPlayer.src = videoURL;
+                dom.videoPreviewContainer.classList.remove('hidden');
             } else {
-                videoPreviewContainer.classList.add('hidden');
+                dom.videoPreviewContainer.classList.add('hidden');
             }
         });
+        
+        dom.videoPreviewPlayer.addEventListener('loadedmetadata', renderTimestamps);
+
     </script>
 </body>
 </html>
