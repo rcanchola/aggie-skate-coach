@@ -129,186 +129,247 @@
     </div>
 
     <script>
-        // Global Variables for API (MANDATORY for external deployment)
-        __app_id = typeof __app_id !== 'undefined' ? __app_id : 'skating-aggie-coach';
-        // -------------------------------------------------------------------
-        // CRITICAL: INSERT YOUR GEMINI API KEY HERE!
-        // The key MUST be inside the quotes and followed by a semicolon.
-        // -------------------------------------------------------------------
-        const apiKey = "AIzaSyAqjc5HsMnGu7vv_6kkXLeuHyZu2CmOx-0"; 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    // Global Variables for API (MANDATORY for external deployment)
+    __app_id = typeof __app_id !== 'undefined' ? __app_id : 'skating-aggie-coach';
+    // -------------------------------------------------------------------
+    // CRITICAL: INSERT YOUR GEMINI API KEY HERE!
+    // The key MUST be inside the quotes and followed by a semicolon.
+    // -------------------------------------------------------------------
+    const apiKey = "YOUR_GEMINI_API_KEY_HERE"; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
-        // DOM Elements
-        const videoFileEl = document.getElementById('videoFile');
-        const skatingMoveEl = document.getElementById('skatingMove');
-        const analyzeBtn = document.getElementById('analyzeBtn');
-        const analysisOutput = document.getElementById('analysisOutput');
-        const outputSection = document.getElementById('outputSection');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const messageBox = document.getElementById('messageBox');
+    // DOM Elements
+    const videoFileEl = document.getElementById('videoFile');
+    const skatingMoveEl = document.getElementById('skatingMove');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const analysisOutput = document.getElementById('analysisOutput');
+    const outputSection = document.getElementById('outputSection');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const messageBox = document.getElementById('messageBox');
+    
+    // New DOM Elements for Link Box
+    const videoLinksBox = document.getElementById('videoLinksBox');
+    const videoLinksOutput = document.getElementById('videoLinksOutput');
 
-        /**
-         * Helper function to convert raw text with newlines (\n) 
-         * into browser-friendly HTML line breaks (<br>).
-         */
-        function formatTextForDisplay(text) {
-            // Replace all newline characters with <br> tags for visual formatting.
-            if (text) {
-                // We use <br> to ensure line breaks and list structure are preserved with innerHTML
-                return text.replace(/\n/g, '<br>');
-            }
-            return '';
-        }
 
-        /**
-         * Clears and displays a message in the dedicated message box.
-         */
-        function showMessage(message, type = 'error') {
-            messageBox.textContent = message;
-            messageBox.className = `p-3 mt-4 rounded-lg font-medium ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
-            messageBox.classList.remove('hidden');
-        }
+    /**
+     * Converts basic Markdown (bold, lists) into HTML for cleaner display.
+     */
+    function formatMarkdown(text) {
+        // 1. Convert bold (**) to <strong>
+        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-        /**
-         * Converts a File object to a GenerativePart object for the API payload.
-         */
-        async function fileToGenerativePart(file) {
-            const base64Data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                // When read is complete, resolve with the Base64 data part (after the comma)
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(file);
-            });
+        // 2. Convert Markdown list items (* item) to HTML <ul>/<li>
+        // This is complex, so we'll use a simplified line-by-line approach for reliability.
+        const lines = text.split('\n');
+        let html = '';
+        let inList = false;
 
-            return {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: file.type,
-                },
-            };
-        }
-
-        /**
-         * Executes the API call to Gemini with exponential backoff.
-         */
-        async function fetchWithBackoff(payload, retries = 3) {
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('*')) {
+                const itemContent = trimmedLine.substring(1).trim();
+                if (!inList) {
+                    html += '<ul>';
+                    inList = true;
                 }
-                
-                return await response.json();
-            } catch (error) {
-                if (retries > 0) {
-                    const delay = Math.pow(2, 3 - retries) * 1000;
-                    console.warn(`Retrying in ${delay}ms...`, error.message);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return fetchWithBackoff(payload, retries - 1);
+                html += `<li>${itemContent}</li>`;
+            } else {
+                if (inList) {
+                    html += '</ul>';
+                    inList = false;
                 }
-                throw error;
-            }
-        }
-
-
-        async function handleAnalysis() {
-            // Reset state
-            messageBox.classList.add('hidden');
-            analysisOutput.textContent = '';
-            loadingIndicator.classList.remove('hidden');
-            analyzeBtn.disabled = true;
-
-            const file = videoFileEl.files[0];
-            const moveName = skatingMoveEl.value.trim();
-
-            if (!file) {
-                showMessage('A-Ruff! Please show Reveille a video! We need to see the action.');
-                loadingIndicator.classList.add('hidden');
-                analyzeBtn.disabled = false;
-                return;
-            }
-            
-            // Check file size limit (20MB)
-            if (file.size > 20 * 1024 * 1024) {
-                 showMessage('That file is bigger than the Aggie bonfire! We can only handle clips under 20MB for immediate analysis. Try a shorter one!');
-                 loadingIndicator.classList.add('hidden');
-                 analyzeBtn.disabled = false;
-                 return;
-            }
-
-            if (!moveName) {
-                showMessage('Good Dog! You missed a step. Tell Reveille what trick you\'re trying to land.');
-                loadingIndicator.classList.add('hidden');
-                analyzeBtn.disabled = false;
-                return;
-            }
-
-            try {
-                // 1. Convert video file to a Part object
-                const videoPart = await fileToGenerativePart(file);
-
-                // 2. Define the Reveille-themed system instruction (The AI's persona)
-                const systemPrompt = `You are Reveille, the official mascot and First Lady of Aggieland. You are a highly focused, encouraging, and spirited skateboarding coach. Analyze the user's video of a ${moveName}. 
-                Provide three to four extremely concise, actionable points of advice for immediate improvement. Your response MUST start with a short, encouraging introductory paragraph (1-2 sentences). 
-                The advice MUST be formatted using a clear Markdown bulleted list and MUST use bolding on key terms, tricks, and Aggie references to maximize visual appeal and readability. 
-                Crucially, at the very end of your advice, you MUST include the two high-quality YouTube links (URLs) under a Markdown H2 heading (## Film Study - Whoop!) to clearly separate the links from the critique.
-                Your feedback MUST be highly personalized with dog-themed and Texas A&M cultural references (e.g., barks, "Good Dog!", "Corps of Cadets," "Gig 'em," "whoop"). If the video they send is not related to skating, do not give advice, and instead suggest the user to upload a video relating to a skating trick or skill.
-                Start your response with "A-Ruff! Howdy, Aggie Skater! Here is Reveille's quick critique on your ${moveName}:"`;
-                
-                const userQuery = `Analyze this video of me attempting a ${moveName}. Give me specific improvement advice on stance, timing, and execution, as if you were coaching me at Kyle Field.`;
-
-                // 3. Construct the Multimodal Payload
-                const payload = {
-                    contents: [
-                        { parts: [
-                            videoPart, // The video data part
-                            { text: userQuery } // The text prompt
-                        ] }
-                    ],
-                    systemInstruction: {
-                        parts: [{ text: systemPrompt }]
-                    },
-                };
-                
-                // 4. Call the API (using Google Search grounding for YouTube links)
-                const result = await fetchWithBackoff({ ...payload, tools: [{ "google_search": {} }] });
-
-                // 5. Extract and display the result
-                const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                
-                if (generatedText) {
-                    // Use formatTextForDisplay to convert newlines to <br> tags, 
-                    // which is necessary for correct line spacing with innerHTML.
-                    const formattedHtml = formatTextForDisplay(generatedText);
-                    analysisOutput.innerHTML = formattedHtml;
-                } else {
-                    showMessage("Analysis failed to return text. Even Reveille can't make sense of that! Try a different video or prompt. Good Dog!");
+                // Convert remaining double newlines to paragraphs/breaks
+                if (line.trim().length > 0) {
+                    html += `<p>${line.trim()}</p>`;
                 }
-
-            } catch (error) {
-                console.error('API or File Error:', error);
-                showMessage(`An error occurred: ${error.message}. Check the console for details. Don't worry, even the 12th Man sometimes needs a retry!`);
-            } finally {
-                loadingIndicator.classList.add('hidden');
-                analyzeBtn.disabled = false;
             }
-        }
+        });
+        if (inList) html += '</ul>';
+        
+        return html;
+    }
 
-        // Event Listeners
-        analyzeBtn.addEventListener('click', handleAnalysis);
 
-        // Set up the file input change listener to hide the error message on new file selection
-        videoFileEl.addEventListener('change', () => {
-            messageBox.classList.add('hidden');
+    /**
+     * Extracts and formats video URLs from the AI's response text into clickable buttons.
+     */
+    function formatVideoLinks(text) {
+        // Regex to find all URLs starting with http:// or https://
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = text.match(urlRegex) || [];
+        
+        if (urls.length === 0) return '';
+
+        let html = '';
+        urls.forEach((url, index) => {
+            const linkTitle = `Film Study Video ${index + 1}`;
+            // Styled as a button using Tailwind classes
+            html += `
+                <a href="${url.trim()}" target="_blank" class="flex items-center justify-between px-4 py-3 bg-[#fdfdfd] border-2 border-[#500000] text-[#500000] font-semibold rounded-lg hover:bg-[#500000] hover:text-white transition duration-200 shadow-md">
+                    ${linkTitle}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 ml-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+            `;
+        });
+        return html;
+    }
+
+
+    /**
+     * Clears and displays a message in the dedicated message box.
+     */
+    function showMessage(message, type = 'error') {
+        messageBox.textContent = message;
+        messageBox.className = `p-3 mt-4 rounded-lg font-medium ${type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-green-100 border border-green-400 text-green-700'}`;
+        messageBox.classList.remove('hidden');
+    }
+
+    /**
+     * Converts a File object to a GenerativePart object for the API payload.
+     */
+    async function fileToGenerativePart(file) {
+        const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
         });
 
-    </script>
+        return {
+            inlineData: {
+                data: base64Data,
+                mimeType: file.type,
+            },
+        };
+    }
+
+    /**
+     * Executes the API call to Gemini with exponential backoff.
+     */
+    async function fetchWithBackoff(payload, retries = 3) {
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            if (retries > 0) {
+                const delay = Math.pow(2, 3 - retries) * 1000;
+                console.warn(`Retrying in ${delay}ms...`, error.message);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return fetchWithBackoff(payload, retries - 1);
+            }
+            throw error;
+        }
+    }
+
+
+    async function handleAnalysis() {
+        // Reset state
+        messageBox.classList.add('hidden');
+        analysisOutput.innerHTML = 'Upload your video and click "Start Analysis" to receive your official coaching critique from the First Lady of Aggieland!';
+        videoLinksOutput.innerHTML = '';
+        videoLinksBox.classList.add('hidden');
+        loadingIndicator.classList.remove('hidden');
+        analyzeBtn.disabled = true;
+
+        const file = videoFileEl.files[0];
+        const moveName = skatingMoveEl.value.trim();
+
+        if (!file || !moveName) {
+            showMessage('A-Ruff! Please show Reveille a video and enter the trick name!', 'error');
+            loadingIndicator.classList.add('hidden');
+            analyzeBtn.disabled = false;
+            return;
+        }
+
+        if (file.size > 20 * 1024 * 1024) {
+            showMessage('File is too large. We can only handle clips under 20MB.', 'error');
+            loadingIndicator.classList.add('hidden');
+            analyzeBtn.disabled = false;
+            return;
+        }
+
+        try {
+            const videoPart = await fileToGenerativePart(file);
+
+            // The system prompt MUST instruct the AI to include the specific header (## Film Study - Whoop!)
+            const systemPrompt = `You are **Reveille**, the official mascot and First Lady of Aggieland. You are a highly focused, encouraging, and spirited skateboarding coach. Analyze the user's video of a ${moveName}. 
+            Provide **three to four extremely concise, actionable points** of advice for immediate improvement. Your response **MUST** start with a short, encouraging introductory paragraph (1-2 sentences). 
+            The advice **MUST** be formatted using a **clear Markdown bulleted list** and **MUST use bolding** on key terms, tricks, and Aggie references to maximize visual appeal and readability. 
+            Crucially, at the very end of your advice, you **MUST** include the two high-quality YouTube links (URLs) under a **Markdown H2 header (## Film Study - Whoop!)** to clearly separate the links from the critique. The header must be exactly '## Film Study - Whoop!'
+            Your feedback MUST be highly personalized with dog-themed and Texas A&M cultural references (e.g., barks, "Good Dog!", "Corps of Cadets," "Gig 'em," "whoop"). If the video they send is not related to skating, do not give advice, and instead suggest the user to upload a video relating to a skating trick or skill.
+            Start your response with "A-Ruff! Howdy, Aggie Skater! Here is Reveille's quick critique on your ${moveName}:"`;
+
+            const userQuery = `Analyze this video of me attempting a ${moveName}. Give me specific improvement advice on stance, timing, and execution, as if you were coaching me at Kyle Field.`;
+
+            const payload = {
+                contents: [
+                    { parts: [videoPart, { text: userQuery }] }
+                ],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const result = await fetchWithBackoff({ ...payload, tools: [{ "google_search": {} }] });
+
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (generatedText) {
+                // Split the response using the dedicated header
+                const splitIndex = generatedText.indexOf('## Film Study - Whoop!');
+                
+                let critiqueText = generatedText;
+                let linksText = '';
+
+                if (splitIndex !== -1) {
+                    critiqueText = generatedText.substring(0, splitIndex).trim();
+                    linksText = generatedText.substring(splitIndex + '## Film Study - Whoop!'.length).trim();
+                }
+
+                // 1. Format and display the main critique
+                if (critiqueText) {
+                    analysisOutput.innerHTML = formatMarkdown(critiqueText);
+                }
+
+                // 2. Format and display the links
+                if (linksText) {
+                    const formattedLinks = formatVideoLinks(linksText);
+                    videoLinksOutput.innerHTML = formattedLinks;
+                    videoLinksBox.classList.remove('hidden');
+                } else {
+                    // Hide the box if no links are found
+                    videoLinksBox.classList.add('hidden');
+                }
+            } else {
+                showMessage("Analysis failed to return text. Even Reveille can't make sense of that! Try a different video or prompt. Good Dog!", 'error');
+            }
+
+        } catch (error) {
+            console.error('API or File Error:', error);
+            showMessage(`An error occurred: ${error.message}. Check the console for details. Don't worry, even the 12th Man sometimes needs a retry!`, 'error');
+        } finally {
+            loadingIndicator.classList.add('hidden');
+            analyzeBtn.disabled = false;
+        }
+    }
+
+    // Event Listeners
+    analyzeBtn.addEventListener('click', handleAnalysis);
+
+    // Set up the file input change listener to hide the error message on new file selection
+    videoFileEl.addEventListener('change', () => {
+        messageBox.classList.add('hidden');
+    });
+
+</script>
 </body>
 </html>
