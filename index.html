@@ -182,15 +182,19 @@
 
         function formatSimpleMarkdown(text) {
             let html = text.trim();
-            html = html.replace(/(?:^[\*-]\s.*(?:\r?\n|$))+/gm, (match) => {
-                const items = match.trim().split(/\r?\n/);
-                const listItems = items.map(item => `<li>${item.replace(/^[\*-]\s/, '')}</li>`).join('');
+            // This regex handles multi-line list items
+            html = html.replace(/(?:^[\*-]\s.*(?:\r?\n(?![\*-]).*)*)+/gm, (match) => {
+                const items = match.trim().split(/^[\*-]\s/m).filter(Boolean);
+                const listItems = items.map(item => `<li>${item.trim()}</li>`).join('');
                 return `<ul class="list-disc ml-6 space-y-1">${listItems}</ul>`;
             });
+
             html = html
                 .replace(/^##\s*(.*)$/gm, '<h3 class="text-xl font-bold text-[#500000] mb-2">$1</h3>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>');
+                
+            // Cleanup extra breaks around block elements
             html = html.replace(/<br>(<\/?(h3|ul|li))/g, '$1').replace(/(<\/(h3|ul|li))><br>/g, '$1');
             return html;
         }
@@ -225,7 +229,6 @@
             loadingIndicator.classList.remove('hidden');
             analyzeBtn.disabled = true;
             reveilleGreetingEl.classList.add('hidden');
-            outputSection.classList.remove('hidden');
 
             const file = videoFileEl.files[0];
             const userQuery = userPromptEl.value.trim();
@@ -245,10 +248,23 @@
 
             try {
                 const videoPart = await fileToGenerativePart(file);
-                const systemPrompt = "You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. At the end of your response, create a distinct section under a bolded, enlarged header: ## Film Study. In this section, you **MUST** provide 1-2 full, direct YouTube video URLs. The links **MUST** be complete URLs that start with `https://www.youtube.com`. **Do not** add any extra text, titles, or bullet points in this section—only the links. If you cannot find a valid YouTube link, state 'No relevant tutorials found.'";
+                // UPDATED: Telling the AI to provide the full HTML for the video player.
+                const systemPrompt = `You are Reveille, the world's most disciplined collie and a legendary skate coach. Give feedback that is encouraging, structured, and helpful. Use **bolding** and * bullet points for clarity. 
+                
+At the end of your response, create a distinct section under a bolded, enlarged header: ## Film Study. 
+
+In this section, you **MUST** find 1-2 relevant YouTube tutorial videos and provide the full HTML embed code for each. **Do not** provide just the link. You must provide the complete HTML \`<iframe>\` wrapped in a responsive \`div\` like this example:
+
+\`\`\`html
+<div class="video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20">
+  <iframe src="https://www.youtube.com/embed/VIDEO_ID" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
+\`\`\`
+
+Replace \`VIDEO_ID\` with the actual ID of the YouTube video. If you cannot find a valid video, state 'No relevant tutorials found.'`;
                 
                 const payload = {
-                    contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice on stance, timing, and execution.` }] }],
+                    contents: [{ parts: [videoPart, { text: `Analyze this video of me attempting a ${userQuery}. Give me specific improvement advice on stance, timing, and execution. Start with a friendly greeting and end with a sign-off.` }] }],
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     tools: [{ "google_search": {} }]
                 };
@@ -258,50 +274,34 @@
                 
                 if (generatedText) {
                     let critiqueText = generatedText;
-                    let linksText = '';
+                    let videoHtmlSection = '';
 
-                    const linksHeaderRegex = /(^##\s*Film\s*Study.*)/im;
-                    const match = generatedText.match(linksHeaderRegex);
+                    const videoSectionRegex = /(^##\s*Film\s*Study.*)/is; // 's' flag for dotall
+                    const match = generatedText.match(videoSectionRegex);
                     
                     if (match && match.index > -1) {
-                        const splitIndex = match.index;
-                        critiqueText = generatedText.substring(0, splitIndex).trim();
-                        linksText = generatedText.substring(splitIndex).trim();
+                        critiqueText = generatedText.substring(0, match.index).trim();
+                        videoHtmlSection = generatedText.substring(match.index).trim();
+                        // Clean up markdown code blocks from the HTML section
+                        videoHtmlSection = videoHtmlSection.replace(/```html\n|```/g, '');
                     } else {
                         critiqueText = generatedText;
                     }
 
+                    // Render the critique part using markdown formatter
                     analysisOutput.innerHTML = formatSimpleMarkdown(critiqueText);
                     analysisOutput.classList.remove('hidden');
-                    
-                    // --- COMPLETELY REVISED VIDEO PLAYER LOGIC ---
-                    videoLinksBox.innerHTML = ''; // Always clear the video box first
-                    if (linksText) {
-                        const urlRegex = /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/g;
-                        const links = [...linksText.matchAll(urlRegex)];
-                        
-                        if (links.length > 0) {
-                            const header = document.createElement('h3');
-                            header.className = 'text-xl font-bold text-[#500000] mb-4';
-                            header.textContent = 'Film Study';
-                            videoLinksBox.appendChild(header);
 
-                            links.forEach(linkMatch => {
-                                const videoId = linkMatch[1]; // The video ID is the first capture group
-                                const playerContainer = document.createElement('div');
-                                playerContainer.className = 'video-container my-4 rounded-lg overflow-hidden shadow-lg border-2 border-[#500000]/20';
-                                const iframe = document.createElement('iframe');
-                                iframe.src = `https://www.youtube.com/embed/${videoId}`;
-                                iframe.setAttribute('frameborder', '0');
-                                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
-                                iframe.setAttribute('allowfullscreen', true);
-                                playerContainer.appendChild(iframe);
-                                videoLinksBox.appendChild(playerContainer);
-                            });
-                        } else {
-                            // If the AI gave a "Film Study" section but no links were found inside it.
-                            videoLinksBox.innerHTML = formatSimpleMarkdown(linksText);
-                        }
+                    // --- REVISED: Render the video part ---
+                    videoLinksBox.innerHTML = ''; // Clear the box
+                    if (videoHtmlSection) {
+                        // The AI provides the "## Film Study" line, convert it to an H3
+                        const processedHtml = videoHtmlSection.replace(
+                            /^##\s*(.*)$/m, 
+                            '<h3 class="text-xl font-bold text-[#500000] mb-4">$1</h3>'
+                        );
+                        // Directly insert the HTML provided by the AI
+                        videoLinksBox.innerHTML = processedHtml;
                         videoLinksBox.classList.remove('hidden');
                     }
                     
